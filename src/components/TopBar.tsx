@@ -1,4 +1,16 @@
-import { Camera, RotateCcw, Undo2, Redo2, Download, Upload, Globe, FileSpreadsheet } from 'lucide-react';
+import {
+  Camera,
+  RotateCcw,
+  Undo2,
+  Redo2,
+  Download,
+  Upload,
+  Globe,
+  FileSpreadsheet,
+  History,
+  Bookmark,
+  Share2,
+} from 'lucide-react';
 import type { RoomStats } from '../scene/layoutMath';
 import type { Lang, RoomConfig } from '../scene/types';
 
@@ -8,6 +20,7 @@ interface TopBarProps {
   stats: RoomStats;
   canUndo: boolean;
   canRedo: boolean;
+  snapshotCount?: number;
   onUndo: () => void;
   onRedo: () => void;
   onReset: () => void;
@@ -16,6 +29,9 @@ interface TopBarProps {
   onImport: (file: File) => void;
   onToggleLang: () => void;
   onOpenCutList?: () => void;
+  onOpenHistory?: () => void;
+  onQuickSave?: () => void;
+  onShareLink?: () => void;
 }
 
 export function TopBar({
@@ -24,6 +40,7 @@ export function TopBar({
   stats,
   canUndo,
   canRedo,
+  snapshotCount = 0,
   onUndo,
   onRedo,
   onReset,
@@ -32,6 +49,9 @@ export function TopBar({
   onImport,
   onToggleLang,
   onOpenCutList,
+  onOpenHistory,
+  onQuickSave,
+  onShareLink,
 }: TopBarProps) {
   const isAr = lang === 'ar';
 
@@ -101,10 +121,57 @@ export function TopBar({
             onClick={onOpenCutList}
             aria-label={isAr ? 'كشف مقاسات الورشة والفني' : 'Workshop Cut-List'}
             title={isAr ? 'عرض كشف مقاسات وتفصيل الستانلس ستيل للورشة' : 'Open Stainless Cut-List'}
-            className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md transition-colors whitespace-nowrap shrink-0"
+            className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>{isAr ? '📋 كشف مقاسات الورشة' : 'Cut-List'}</span>
+          </button>
+        )}
+
+        {/* Quick Save Snapshot */}
+        {onQuickSave && (
+          <button
+            type="button"
+            onClick={onQuickSave}
+            aria-label={isAr ? 'حفظ نسخة الآن' : 'Save Version'}
+            title={isAr ? 'حفظ نسخة جديدة من التعديلات الحالية مع التاريخ' : 'Save current layout snapshot'}
+            className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Bookmark className="w-4 h-4" />
+            <span className="hidden sm:inline">{isAr ? '💾 حفظ نسخة' : 'Save'}</span>
+          </button>
+        )}
+
+        {/* Version History Modal Trigger */}
+        {onOpenHistory && (
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            aria-label={isAr ? 'سجل النسخ المحفوظة' : 'Version History'}
+            title={isAr ? 'عرض سجل النسخ السابقة واستعادتها أو مشاركتها' : 'View and restore layout versions'}
+            className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-stone-200 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <History className="w-4 h-4 text-amber-400" />
+            <span className="hidden md:inline">{isAr ? 'النسخ' : 'Versions'}</span>
+            {snapshotCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-amber-500/25 text-amber-300 border border-amber-500/30">
+                {snapshotCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Instant Share Link */}
+        {onShareLink && (
+          <button
+            type="button"
+            onClick={onShareLink}
+            aria-label={isAr ? 'مشاركة رابط بالتعديلات الحالية' : 'Share Link'}
+            title={isAr ? 'نسخ رابط يفتح بنفس مقاساتك وتعديلاتك لأي شخص' : 'Copy link with current layout'}
+            className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-sky-300 hover:bg-sky-500/15 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Share2 className="w-4 h-4" />
+            <span className="hidden md:inline">{isAr ? 'مشاركة رابط' : 'Share'}</span>
           </button>
         )}
 

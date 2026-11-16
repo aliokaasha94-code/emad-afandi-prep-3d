@@ -5,6 +5,7 @@ import { FabricationSpecCard } from './components/FabricationSpecCard';
 import { PhotosGalleryModal } from './components/PhotosGalleryModal';
 import { SceneViewport } from './components/SceneViewport';
 import { TopBar } from './components/TopBar';
+import { VersionHistoryModal, type SavedSnapshot } from './components/VersionHistoryModal';
 import {
   clampItemToRoom,
   computeDistanceCm,
@@ -39,9 +40,42 @@ import type {
 } from './scene/types';
 
 const STORAGE_KEY = 'emad_afandi_3d_space_v8_extended_shelves';
+const SNAPSHOTS_KEY = 'emad_afandi_snapshots_v1';
+
+function loadSavedSnapshots(): SavedSnapshot[] {
+  try {
+    const raw = localStorage.getItem(SNAPSHOTS_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) return list;
+    }
+  } catch {
+    // Ignore
+  }
+  return [];
+}
 
 function loadInitialSnapshot(): LayoutSnapshot {
   try {
+    // 1. First priority: Direct shared URL hash (#layout=... or #data=...)
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hashStr = window.location.hash.slice(1);
+      const match = hashStr.match(/(?:layout|data)=([^&]+)/) || [null, hashStr];
+      const encoded = match[1];
+      if (encoded) {
+        try {
+          const decoded = decodeURIComponent(encoded);
+          const parsedFromUrl = parseLayoutJson(decoded);
+          if (parsedFromUrl) {
+            return parsedFromUrl;
+          }
+        } catch {
+          // Ignore URL parse error
+        }
+      }
+    }
+
+    // 2. Second priority: Local browser saved layout
     const saved =
       localStorage.getItem(STORAGE_KEY) ||
       localStorage.getItem('emad_afandi_3d_space_v7_fabrication') ||
@@ -91,6 +125,8 @@ export default function App() {
     future: [],
   }));
 
+  const [snapshots, setSnapshots] = useState<SavedSnapshot[]>(loadSavedSnapshots);
+  const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCutListModal, setShowCutListModal] = useState<boolean>(false);
   const [navMode, setNavMode] = useState<NavMode>('orbit');
@@ -382,6 +418,88 @@ export default function App() {
     [lang, notify]
   );
 
+  const handleSaveSnapshot = useCallback(
+    (name: string) => {
+      const snap: SavedSnapshot = {
+        id: `snap_${Date.now().toString(36)}`,
+        name,
+        createdAt: new Date().toISOString(),
+        itemCount: history.present.items.length,
+        dimensionsSummary: `${history.present.room.widthCm} × ${history.present.room.depthCm} سم`,
+        data: {
+          room: { ...history.present.room, walls: { ...history.present.room.walls } },
+          items: history.present.items.map((i) => ({ ...i })),
+        },
+      };
+      setSnapshots((prev) => {
+        const next = [snap, ...prev];
+        try {
+          localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+      notify(lang === 'ar' ? `✅ تم حفظ النسخة "${name}" بنجاح!` : `✅ Version "${name}" saved!`);
+    },
+    [history.present, lang, notify]
+  );
+
+  const handleQuickSave = useCallback(() => {
+    const timeStr = new Date().toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    handleSaveSnapshot(lang === 'ar' ? `تعديل (${timeStr})` : `Edit (${timeStr})`);
+  }, [handleSaveSnapshot, lang]);
+
+  const handleRestoreSnapshot = useCallback(
+    (snap: SavedSnapshot) => {
+      setHistory((prev) =>
+        pushHistory(prev, {
+          room: { ...snap.data.room, walls: { ...snap.data.room.walls } },
+          items: snap.data.items.map((i) => ({ ...i })),
+        })
+      );
+      setSelectedId(null);
+      setShowHistoryModal(false);
+      notify(lang === 'ar' ? `🔄 تم استعادة النسخة: ${snap.name}` : `🔄 Restored: ${snap.name}`);
+    },
+    [lang, notify]
+  );
+
+  const handleDeleteSnapshot = useCallback((id: string) => {
+    setSnapshots((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      try {
+        localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const handleShareLink = useCallback(() => {
+    try {
+      const minified = JSON.stringify({
+        room: history.present.room,
+        items: history.present.items,
+      });
+      const encoded = encodeURIComponent(minified);
+      const url = `${window.location.origin}${window.location.pathname}#layout=${encoded}`;
+      navigator.clipboard.writeText(url).then(() => {
+        notify(
+          lang === 'ar'
+            ? '🔗 تم نسخ رابط المشاركة بالتعديلات الحالية! ابعته لأي شخص وهيفتح بنفس المقاسات.'
+            : '🔗 Share link copied with current layout!'
+        );
+      });
+    } catch {
+      notify(lang === 'ar' ? 'تعذر إنشاء الرابط' : 'Failed to generate link');
+    }
+  }, [history.present, lang, notify]);
+
   const handleMeasureClick = useCallback(
     (ptCm: Point3D) => {
       if (!pendingMeasureStart) {
@@ -482,6 +600,7 @@ export default function App() {
         stats={stats}
         canUndo={history.past.length > 0}
         canRedo={history.future.length > 0}
+        snapshotCount={snapshots.length}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onReset={handleReset}
@@ -490,6 +609,9 @@ export default function App() {
         onImport={handleImport}
         onToggleLang={() => setLang((l) => (l === 'ar' ? 'en' : 'ar'))}
         onOpenCutList={() => setShowCutListModal(true)}
+        onOpenHistory={() => setShowHistoryModal(true)}
+        onQuickSave={handleQuickSave}
+        onShareLink={handleShareLink}
       />
 
       {statusNotice && (
@@ -568,6 +690,20 @@ export default function App() {
         onClose={() => setActivePhotoIdx(null)}
         onChangeIndex={setActivePhotoIdx}
       />
+
+      {showHistoryModal && (
+        <VersionHistoryModal
+          lang={lang}
+          currentSnapshot={history.present}
+          snapshots={snapshots}
+          onClose={() => setShowHistoryModal(false)}
+          onSaveSnapshot={handleSaveSnapshot}
+          onRestoreSnapshot={handleRestoreSnapshot}
+          onDeleteSnapshot={handleDeleteSnapshot}
+          onRestoreOriginal={handleReset}
+          onShareLink={handleShareLink}
+        />
+      )}
     </main>
   );
 }

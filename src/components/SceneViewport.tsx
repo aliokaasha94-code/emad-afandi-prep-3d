@@ -67,26 +67,39 @@ function createDimensionSprite(
   cadMode: boolean,
   disposables: { dispose: () => void }[]
 ): THREE.Sprite {
+  // Use a measure canvas first to dynamically fit any text length without clipping
   const canvas = document.createElement('canvas');
-  canvas.width = 480;
-  canvas.height = 80;
   const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Compact architectural callout badge
-  ctx.fillStyle = cadMode ? 'rgba(15, 23, 42, 0.92)' : 'rgba(17, 21, 29, 0.88)';
+  const fontSize = 30;
+  const fontStr = `bold ${fontSize}px "Cairo", "IBM Plex Sans Arabic", "Segoe UI", sans-serif`;
+  ctx.font = fontStr;
+
+  const textMetrics = ctx.measureText(text);
+  const textWidth = Math.ceil(textMetrics.width);
+  const padX = 38;
+  const canvasH = 92;
+  const canvasW = Math.max(280, textWidth + padX * 2);
+
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  // Compact architectural callout badge with amber border
+  ctx.fillStyle = cadMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(17, 21, 29, 0.93)';
   ctx.strokeStyle = cadMode ? '#0284c7' : '#f59e0b';
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.roundRect(8, 10, canvas.width - 16, canvas.height - 20, 12);
+  ctx.roundRect(8, 8, canvasW - 16, canvasH - 16, 14);
   ctx.fill();
   ctx.stroke();
 
+  // Draw crisp text centered with ample margin
   ctx.fillStyle = cadMode ? '#f8fafc' : '#fef3c7';
-  ctx.font = 'bold 26px "IBM Plex Sans Arabic", "Cairo", sans-serif';
+  ctx.font = fontStr;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 1);
+  ctx.fillText(text, canvasW / 2, canvasH / 2 + 1);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -98,9 +111,13 @@ function createDimensionSprite(
     depthWrite: false,
   });
   disposables.push(tex, mat);
+
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(0.68, 0.114, 1);
-  sprite.renderOrder = 10;
+  // Maintain accurate proportional aspect ratio based on canvas dimensions so text is never distorted
+  const worldH = 0.125;
+  const worldW = (canvasW / canvasH) * worldH;
+  sprite.scale.set(worldW, worldH, 1);
+  sprite.renderOrder = 20;
   return sprite;
 }
 
@@ -114,43 +131,58 @@ function createItemSpecBadgeSprite(
   disposables: { dispose: () => void }[]
 ): THREE.Sprite {
   const canvas = document.createElement('canvas');
-  canvas.width = 680;
-  canvas.height = 140;
   const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const titleFont = 'bold 24px "Cairo", "IBM Plex Sans Arabic", sans-serif';
+  const dimsFont = 'bold 23px "Cairo", monospace, sans-serif';
+
+  ctx.font = titleFont;
+  const title = code ? `[${code}]  ${nameAr}` : nameAr;
+  const titleW = Math.ceil(ctx.measureText(title).width);
+
+  ctx.font = dimsFont;
+  const dimsText = `${widthCm} × ${depthCm} × ${heightCm} سم  ·  منسوب الأرض: ${yCm} سم`;
+  const dimsW = Math.ceil(ctx.measureText(dimsText).width);
+
+  const maxContentW = Math.max(titleW, dimsW);
+  const padX = 46;
+  const canvasW = Math.max(580, maxContentW + padX * 2);
+  const canvasH = 150;
+
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  ctx.clearRect(0, 0, canvasW, canvasH);
 
   // Background rounded card with glowing amber border
-  ctx.fillStyle = 'rgba(12, 16, 24, 0.94)';
+  ctx.fillStyle = 'rgba(12, 16, 24, 0.95)';
   ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.roundRect(8, 8, canvas.width - 16, canvas.height - 16, 16);
+  ctx.roundRect(8, 8, canvasW - 16, canvasH - 16, 16);
   ctx.fill();
   ctx.stroke();
 
   // Item code & name
   ctx.fillStyle = '#fbbf24';
-  ctx.font = 'bold 21px "Cairo", sans-serif';
+  ctx.font = titleFont;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  const title = code ? `[${code}]  ${nameAr}` : nameAr;
-  ctx.fillText(title, canvas.width / 2, 20);
+  ctx.fillText(title, canvasW / 2, 22);
 
   // Divider line
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.moveTo(24, 58);
-  ctx.lineTo(canvas.width - 24, 58);
+  ctx.moveTo(32, 64);
+  ctx.lineTo(canvasW - 32, 64);
   ctx.stroke();
 
   // Dimensions & Elevation line
   ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 22px "Cairo", monospace, sans-serif';
+  ctx.font = dimsFont;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  const dimsText = `${widthCm} × ${depthCm} × ${heightCm} سم  ·  منسوب الأرض: ${yCm} سم`;
-  ctx.fillText(dimsText, canvas.width / 2, canvas.height - 18);
+  ctx.fillText(dimsText, canvasW / 2, canvasH - 22);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -162,8 +194,11 @@ function createItemSpecBadgeSprite(
     depthWrite: false,
   });
   disposables.push(tex, mat);
+
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(1.08, 0.22, 1);
+  const worldH = 0.22;
+  const worldW = (canvasW / canvasH) * worldH;
+  sprite.scale.set(worldW, worldH, 1);
   sprite.renderOrder = 30;
   return sprite;
 }
@@ -807,7 +842,7 @@ export function SceneViewport({
 
           const gapBadge = createDimensionSprite('خلوص 5 سم عن البوكس', false, selectedDisposables);
           gapBadge.position.set(item.xCm / 100 + 0.18, item.yCm / 100 + 0.14, (shelfZEnd + boxZStart) / 2);
-          gapBadge.scale.set(0.68, 0.11, 1);
+          gapBadge.scale.multiplyScalar(0.92);
           selectedOverlayGroup.add(gapBadge);
         }
 

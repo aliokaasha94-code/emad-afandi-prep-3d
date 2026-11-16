@@ -1,0 +1,6 @@
+{
+  "name": "مخطط المكان ثلاثي الأبعاد | 3D Space Studio",
+  "description": "Interactive 3D reconstruction and layout editor for the café prep space, allowing free movement, room dimension adjustments, and step-by-step furniture & equipment editing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

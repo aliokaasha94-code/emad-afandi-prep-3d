@@ -162,6 +162,7 @@ export function VersionHistoryModal({
             </div>
             <button
               type="submit"
+              onClick={() => handleSave()}
               className="h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all shrink-0 cursor-pointer"
             >
               <Bookmark className="w-4 h-4" />
